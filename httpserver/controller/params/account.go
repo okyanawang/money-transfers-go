@@ -16,7 +16,7 @@ type CreateAccountRequest struct {
 
 type ValidateAccountRequest struct {
 	AccountNumber string `json:"account_number" binding:"required"`
-	AccountName   string `json:"account_name" binding:"required"`
+	AccountName   string `json:"account_name"`
 }
 
 type UpdateAccountRequest struct {

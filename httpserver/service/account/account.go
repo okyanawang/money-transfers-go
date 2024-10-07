@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 
 	"github.com/okyanawang/money-transfer-go/httpserver/controller/params"
 	"github.com/okyanawang/money-transfer-go/httpserver/controller/views"
@@ -64,18 +66,19 @@ func (svc *accountSvc) GetAccountByNumber(ctx context.Context, accountNumber str
 	})
 }
 
-// ValidateAccount calls mock API to validate the account details
 func (svc *accountSvc) ValidateAccount(ctx context.Context, account *params.ValidateAccountRequest) *views.Response {
-	// Replace with your actual mock API URL
-	mockAPIUrl := "https://mockapi.io/endpoint-to-validate-account"
+	mockAPIUrl := os.Getenv("MOCK_API_URL")
+	if mockAPIUrl == "" {
+		return views.ErrorResponse(http.StatusInternalServerError, views.M_INTERNAL_SERVER_ERROR, errors.New("mock API URL is not set"))
+	}
 
-	// Prepare the request to send to the mock API
-	req, err := http.NewRequest("POST", mockAPIUrl, nil) // Add body if needed
+	url := fmt.Sprintf("%s/accounts?account_number=%s", mockAPIUrl, account.AccountNumber)
+
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return views.ErrorResponse(http.StatusInternalServerError, views.M_INTERNAL_SERVER_ERROR, err)
 	}
 
-	// Execute the request
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -83,26 +86,31 @@ func (svc *accountSvc) ValidateAccount(ctx context.Context, account *params.Vali
 	}
 	defer resp.Body.Close()
 
-	// Read and parse the response from the mock API
+	// Read the response body
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return views.ErrorResponse(http.StatusInternalServerError, views.M_INTERNAL_SERVER_ERROR, err)
 	}
 
-	var validationResponse map[string]interface{}
-	err = json.Unmarshal(body, &validationResponse)
+	// Parse the JSON response
+	var accounts []map[string]interface{}
+	err = json.Unmarshal(body, &accounts)
 	if err != nil {
 		return views.ErrorResponse(http.StatusInternalServerError, views.M_INTERNAL_SERVER_ERROR, err)
 	}
 
-	// Example logic to handle validation status
-	status := validationResponse["status"]
-	if status != "valid" {
-		return views.ErrorResponse(http.StatusBadRequest, views.M_ACCOUNT_VALIDATION_FAILED, errors.New("account validation failed"))
+	// Check if the account exists
+	if len(accounts) == 0 {
+		return views.ErrorResponse(http.StatusBadRequest, views.M_ACCOUNT_VALIDATION_FAILED, errors.New("account not found"))
 	}
 
-	// Return success response if validation is successful
-	return views.SuccessResponse(http.StatusOK, views.M_ACCOUNT_VALIDATED, validationResponse)
+	accountInfo := accounts[0] // Get the first account info from the response
+
+	// Return success with account details
+	return views.SuccessResponse(http.StatusOK, views.M_ACCOUNT_VALIDATED, map[string]interface{}{
+		"account_name": accountInfo["account_name"],
+		"bank_name":    accountInfo["bank_name"],
+	})
 }
 
 func NewAccountSvc(repo repository.AccountRepo) service.AccountSvc {
