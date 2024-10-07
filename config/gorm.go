@@ -6,6 +6,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/okyanawang/money-transfer-go/config/seed"
 	"github.com/okyanawang/money-transfer-go/httpserver/repository/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -38,6 +39,11 @@ func ConnectPostgresGORM() (*gorm.DB, error) {
 		models.Transaction{},
 		models.Callback{},
 	)
+
+	if err := seed.LoadAccounts(db); err != nil {
+		log.Errorf("Failed to load account seeds: %v", err)
+		return nil, err
+	}
 
 	return db, nil
 }
